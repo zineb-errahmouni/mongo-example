@@ -1,0 +1,161 @@
+{
+    "query":{
+        "match":{
+            "fields.title":"Star Wars"
+        }
+    }
+}
+
+
+"_comment": "Films Star Wars produits avec George Lucas comme réalisateur"
+{"query":{
+    "bool": {
+        "should": [
+            { "match": { "fields.title": "Star Wars" }},
+            { "match": { "fields.directors": "George Lucas" }}
+        ]
+}}}
+
+"_comment": "Films Star Wars produits avec George Lucas comme réalisateur"
+"_comment": "Utilisation de la requête must pour être plus restrictif"
+
+{"query":{
+    "bool": {
+        "should": { "match": { "fields.title": "Star Wars" }},
+        "must" :  { "match": { "fields.directors": "George Lucas" }}
+}}}
+
+"_comment": "Utilisation du match_phrase pour chercher des séquences de mots ou phrase"
+{"query":{
+    "bool": {
+        "should": [
+            { "match_phrase": { "fields.title": "Star Wars" }},
+            { "match": { "fields.directors": "George Lucas" }}
+        ]
+}}}
+
+
+
+"_comment": "Interdire l’utilisation du mot 'Nazis' avec la clé 'must_not'"
+{"query":{
+    "bool": {
+        "should": [
+            { "match": { "fields.actors": "Harrison Ford" }},
+            { "match": { "fields.plot": "Jones" }}
+        ],
+        "must_not" : { "match" : {"fields.plot":"Nazis"}}
+}}}
+
+---------------------------- "REQUETES AVEC RANGE" ------------------------------
+"_comment": "retrouver les films de James Cameron dont le rang (fields.rank) est inférieur à 1000"
+{"query":{
+    "bool": {
+            "should": [
+                { "match": { "fields.directors": "James Cameron" }},
+                { "range": { "fields.rank": {"lt":1000 }}}
+           ]
+}}}
+
+"_comment": "Utilisation de must au lieu de should"
+{"query":{
+    "bool": {
+        "must": [
+            { "match": { "fields.directors": "James Cameron" }},
+            { "range": { "fields.rank": {"lt":1000 }}}
+        ]
+}}}
+
+"_comment": "Utilisation de match_phrase pour être plus précis et de ne pas avoir des directors autre que James Cameron"
+{"query":{
+    "bool": {
+        "must": [
+            { "match_phrase": { "fields.directors": "James Cameron" }},
+            { "range": { "fields.rank": {"lt":1000 }}}
+        ]
+}}}
+
+"_comment": "les films de James Cameron dont la note (fields.rating) doit être supérieure à 5, mais sans être un film d'action ni dramatique (fields.genre). 
+             Il faut donc utiliser la clé 'must_not', et une liste de 'match' (un par genre)"
+{"query":{
+    "bool": {
+        "should": { "match": { "fields.directors": "James Cameron" }},
+        "must":{ "range": { "fields.rating": {"gte":5 }}},
+        "must_not":[
+            {"match":{"fields.genres":"Action"}},
+            {"match":{"fields.genres":"Drama"}}
+        ]
+}}}
+
+=> Le résultat ne contient aucun film de James Cameron, mais de nombreux autres films avec une note supérieure à 5, 
+mais qui ne sont ni d’action ni dramatiques. Nous retrouvons naturellement les réalisateurs avec "James" ou "Cameron". 
+C’est tout simplement dû au fait que James Cameron ne fait que des films d’action et/ou dramatique. Ce qui est intéressant
+ c’est que, malgré tout, un résultat est renvoyé.
+ 
+"_comment" : "les films de J.J. Abrams sortis entre 2010 et 2015 (fields.release_date). La clé "filter" sera alors appliquée avec
+			"un sous-document de type "range" avec une date de départ (from) et une date de fin (to)" 
+ 
+{
+    "query": {
+        "bool":{
+            "must": {"match": {"fields.directors": "J.J. Abrams"}},
+            "filter": {"range": {"fields.release_date":
+                { "from": "2010-01-01", "to": "2015-12-31"}}}
+}}}
+
+---------------------------- "REQUETES AVEC AGGREGATIONS" ------------------------------ 
+"_comment" : "Calcul de la note moyenne des films"
+
+{"aggs" : {
+    "note_moyenne" : {
+        "avg" : {"field" : "fields.rating"}
+}}}
+
+"_comment" : "nous souhaitons afficher la note moyenne et le rang moyen des films de George Lucas"
+{
+    "query" :{
+        "match" : {"fields.directors" : "George Lucas"}
+    },
+    "aggs" : {
+            "note_moyenne" : {
+                        "avg" : {"field" : "fields.rating"}
+            },
+            "rang_moyen" : {
+                        "avg" : {"field" : "fields.rank"}
+            }
+}}
+
+"_comment" : "La note moyenne des films par années"
+=> Il faut pour cela agréger par date, puis dans ce sous-groupe, agréger (2ème "aggs") avec la clé "avg"
+
+
+{"aggs" : {
+    "group_year" : {
+        "terms" : {"field" : "fields.year"},
+        "aggs" : {
+            "note_moyenne" : {"avg" : {"field" : "fields.rating"}}
+        }
+}}}
+
+"_comment" : "La note moyenne des films par année + la moyenne min et max"
+{"aggs" : {
+    "group_year" : {
+        "terms" : { "field" : "fields.year" },
+        "aggs" : {
+            "note_moyenne" : {"avg" : {"field" : "fields.rating"}},
+            "note_min" : {"min" : {"field" : "fields.rating"}},
+            "note_max" : {"max" : {"field" : "fields.rating"}}
+        }
+}}}
+
+---------------------------- "TRI DES RESULTATS" ------------------------------ 
+"_comment" : "Tri de La note moyenne des films par année"
+{"aggs" : {
+    "group_year" : {
+        "terms" : {
+            "field" : "fields.year",
+            "order" : { "note_moyenne" : "desc" }
+        },
+        "aggs" : {
+            "note_moyenne" : {"avg" : {"field" : "fields.rating"}}
+        }
+}}}
